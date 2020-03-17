@@ -435,6 +435,21 @@ public class InnReservations
         }
     }
 
+    private static void FRfour(Connection conn)
+    {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter the reservation code of the reservation you would like to cancel: ");
+        String code = scanner.nextLine();
+        String deleteRes = "delete from lab7_reservations where CODE = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(deleteRes)) {
+            pstmt.setString(1, code);
+            int row = pstmt.executeUpdate();
+            System.out.printf("Reservation %s has been successfully canceled\n", code);
+        }
+        catch(SQLException e){
+            e.printStackTrace();
+        }
+    }
     public static void main(String[] args)
     {
 
@@ -459,7 +474,9 @@ public class InnReservations
 
             //FRone(conn);
 
-            FRtwo(conn);
+            //FRtwo(conn);
+
+            FRfour(conn);
             
         }
         catch (SQLException e)
