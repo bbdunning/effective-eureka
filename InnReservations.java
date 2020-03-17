@@ -202,7 +202,7 @@ public class InnReservations
             bedType, beginDate, endDate, children, adults);*/
         Boolean roomChosen = false;
         Boolean bedTypeChosen = false;
-        String gimmeStuff = "SELECT DISTINCT RoomCode, RoomName, bedType, basePrice from lab7_rooms join lab7_reservations on lab7_reservations.Room = lab7_rooms.RoomCode " +
+        String gimmeStuff = "SELECT DISTINCT RoomCode, RoomName, bedType, basePrice, maxOcc from lab7_rooms join lab7_reservations on lab7_reservations.Room = lab7_rooms.RoomCode " +
                             "Where MaxOcc >= ? and RoomCode not in (" +
                             "select distinct RoomCode from lab7_reservations join lab7_rooms " +
                                 "WHERE lab7_reservations.Room = lab7_rooms.RoomCode and " +
@@ -215,7 +215,6 @@ public class InnReservations
         }
         if(!bedType.equals("Any"))
         {
-            System.out.println("here");
             bedTypeChosen = true;
             gimmeStuff+= " and bedType = ?";
         }
@@ -248,8 +247,10 @@ public class InnReservations
                 result.add(rs.getString("RoomName"));                    
                 result.add(rs.getString("bedType"));
                 result.add(rs.getString("basePrice"));
+                result.add(rs.getString("MaxOcc"));
                 results.add(result);
-                System.out.format("%d) %s--%s\n", ++matchCount, results.get(matchCount-1).get(0), results.get(matchCount-1).get(1));
+                System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: %s\n", 
+                                    ++matchCount, results.get(matchCount-1).get(0),results.get(matchCount-1).get(1), results.get(matchCount-1).get(4),results.get(matchCount-1).get(2), results.get(matchCount-1).get(3));
             }
             //If no matches were found...show them other options
             if(matchCount==0)
@@ -272,8 +273,8 @@ public class InnReservations
                 {
                     Integer roomPickedInt = Integer.valueOf(roomPicked)-1; //convert user input to array index
                     System.out.println("-----BOOKING INFORMATION-----");
-                    System.out.printf("First Name: %s, Last Name: %s\n", firstName, lastName);
-                    System.out.printf("Room Code: %s, Room Name: %s, Bed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
+                    System.out.printf("First Name: %s\nLast Name: %s\n", firstName, lastName);
+                    System.out.printf("Room Code: %s\nRoom Name: %s\nBed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
                     System.out.printf("Adults: %s\n", adults);
                     System.out.printf("Kids: %s\n", children);
                     System.out.printf("Total Cost: %.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
@@ -304,7 +305,7 @@ public class InnReservations
             "C.TheDate between date_sub( ?, INTERVAL 14 DAY) and date_add( ?, INTERVAL 14 DAY) " + 
             "order by C.TheDate, C1.TheDate" + 
         ") " + 
-        "select RoomCode, RoomName, bedType, basePrice, startDate, endDate from suggestedDates as sd1 " + 
+        "select RoomCode, RoomName, bedType, basePrice, maxOcc, startDate, endDate from suggestedDates as sd1 " + 
         "join lab7_rooms as r1 " + 
         "where not exists(" +
             "select RoomCode, startDate, endDate from suggestedDates " + 
@@ -337,6 +338,9 @@ public class InnReservations
                 result.add(rs.getString("RoomName"));                    
                 result.add(rs.getString("bedType"));
                 result.add(rs.getString("basePrice"));
+                result.add(rs.getString("MaxOcc"));
+                result.add(rs.getString("startDate"));
+                result.add(rs.getString("endDate"));
                 results.add(result);
             }
         }
@@ -347,8 +351,10 @@ public class InnReservations
         for (int i=0; i< results.size(); i++) 
         { 
             List<String> result = results.get(i);
-            System.out.format("%d) %s--%s\n", i + 1, result.get(0), result.get(1));
-        }
+            System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: %s\n", 
+                                i + 1, result.get(0), result.get(1),result.get(4),result.get(2),result.get(3));
+            System.out.format("Start Date: %s\nEnd Date: %s\n", result.get(5), result.get(6));
+        }    
 
         System.out.println("If you do not wish to book any of these rooms enter *cancel*");
         System.out.print("Please select a room by entering the option number: ");
@@ -361,8 +367,8 @@ public class InnReservations
         {
             Integer roomPickedInt = Integer.valueOf(roomPicked)-1; //convert user input to array index
             System.out.println("-----BOOKING INFORMATION-----");
-            System.out.printf("First Name: %s, Last Name: %s\n", firstName, lastName);
-            System.out.printf("Room Code: %s, Room Name: %s, Bed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
+            System.out.printf("First Name: %s\nLast Name: %s\n", firstName, lastName);
+            System.out.printf("Room Code: %s\nRoom Name: %s\nBed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
             System.out.printf("Adults: %s\n", adults);
             System.out.printf("Kids: %s\n", children);
             System.out.printf("Total Cost: %.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
@@ -407,7 +413,6 @@ public class InnReservations
                 //Insert new entry to our table
                 while(resCode.next()){    
                     newResCode = resCode.getInt("maxResCode");
-                    System.out.printf("%d\n", newResCode);                                    
                 }
             }
             catch(SQLException e){
@@ -474,9 +479,9 @@ public class InnReservations
 
             //FRone(conn);
 
-            //FRtwo(conn);
+            FRtwo(conn);
 
-            FRfour(conn);
+            //FRfour(conn);
             
         }
         catch (SQLException e)
