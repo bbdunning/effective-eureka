@@ -191,7 +191,7 @@ public class InnReservations
             if(maxOccupancyRoom < Integer.valueOf(adults) + Integer.valueOf(children))
             {
                 System.out.println("No suitable rooms are available");
-                System.exit(-1);
+                return;
             }
         }
         catch(SQLException e)
@@ -258,6 +258,7 @@ public class InnReservations
                 System.out.println("No exact matches were found :(.");
                 System.out.println("Here are some similar options based on the dates that you entered");
                 GiveSimilarOptions(conn, beginDate, endDate, firstName, lastName, adults, children);
+                return;
             }
             //If matches were found allow them to select one of the rooms
             else
@@ -267,7 +268,7 @@ public class InnReservations
                 String roomPicked = scanner.nextLine();
                 if(roomPicked.equals("cancel"))
                 {
-                    System.exit(-1);
+                    return;
                 }
                 else
                 {
@@ -359,12 +360,7 @@ public class InnReservations
         System.out.println("If you do not wish to book any of these rooms enter *cancel*");
         System.out.print("Please select a room by entering the option number: ");
         String roomPicked = scanner.nextLine();
-        if(roomPicked.equals("cancel"))
-        {
-            System.exit(-1);
-        }
-        else
-        {
+        if(!roomPicked.equals("cancel")){
             Integer roomPickedInt = Integer.valueOf(roomPicked)-1; //convert user input to array index
             System.out.println("-----BOOKING INFORMATION-----");
             System.out.printf("First Name: %s\nLast Name: %s\n", firstName, lastName);
@@ -402,7 +398,7 @@ public class InnReservations
         String decision = scanner.nextLine();
         if(decision.equals("cancel"))
         {
-            System.exit(-1);
+            return;
         }
         else
         {
@@ -476,13 +472,32 @@ public class InnReservations
                 "jdbc:mysql://db.labthreesixfive.com/rjmiddle?autoReconnect=true&useSSL=false",
                 "ettucker",
                 "WinterTwenty20_365_014575934");
+            Scanner scanner = new Scanner(System.in);
+            System.out.println("----------------------\nInn Reservation Options");
+            System.out.println("1) ");
+            System.out.println("2) Create a new reservation");
+            System.out.println("4) Delete a reservation");
+            System.out.print("What would you like to do? (enter 'quit' to quit): ");
+            String input = scanner.nextLine();
 
-            //FRone(conn);
-
-            FRtwo(conn);
-
-            //FRfour(conn);
-            
+            while(input.toLowerCase() !="quit")
+            {
+                if(input.equals("1")){
+                    FRone(conn);
+                }
+                else if(input.equals("2")){
+                    FRtwo(conn);
+                }
+                else if(input.equals("4")){
+                    FRfour(conn);
+                }
+                System.out.println("----------------------\nInn Reservation Options");
+                System.out.println("1) ");
+                System.out.println("2) Create a new reservation");
+                System.out.println("4) Delete a reservation");
+                System.out.print("What would you like to do? (enter 'quit' to quit):");
+                input = scanner.nextLine();
+            }
         }
         catch (SQLException e)
         {
