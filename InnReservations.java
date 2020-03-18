@@ -675,6 +675,85 @@ public class InnReservations
         }
     }
 
+    private static void FRfive(Connection conn) throws SQLException
+    {
+        Scanner scanner = new Scanner(System.in);
+        String roomCode = "";
+        String reservationCode = "";
+        String firstName = "";
+        String lastName = "";
+        String beginDate = "";
+        String endDate = "";
+
+        //get input
+        System.out.print("Enter a room code (or Enter for Any): ");
+        roomCode = scanner.nextLine();
+        System.out.print("Enter a reservation code (or Enter for Any): ");
+        reservationCode = scanner.nextLine();
+        System.out.print("Enter a first name (or Enter for Any): ");
+        firstName = scanner.nextLine();
+        System.out.print("Enter a last name (or Enter for Any): ");
+        lastName = scanner.nextLine();
+        System.out.print("Enter a begin date (or Enter for Any): ");
+        beginDate = scanner.nextLine();
+        System.out.print("Enter a end date (or Enter for Any): ");
+        endDate = scanner.nextLine();
+        
+        conn.setAutoCommit(false);
+
+        String stmt = "select * from lab7_reservations join lab7_rooms on Room=RoomCode where room LIKE '%'";
+
+        if (!roomCode.equals("")) 
+           stmt += "and room LIKE ? ";
+        if (!reservationCode.equals(""))
+           stmt += "and code LIKE ? ";
+        if (!firstName.equals(""))
+           stmt += "and firstName LIKE ? ";
+        if (!lastName.equals("")) 
+           stmt += "and lastName LIKE ? ";
+        if (!beginDate.equals("") && !endDate.equals(""))
+           stmt += "and ((? >= CheckIn and ? <= Checkout) " +
+                 "or (? > CheckIn and ? <= Checkout) " +
+                 "or (? < CheckIn and ? > Checkout))";
+
+        try (PreparedStatement pstmt = conn.prepareStatement(stmt)) {
+            int i = 1;
+            if (!roomCode.equals(""))
+               pstmt.setString(i++, roomCode);
+            if (!reservationCode.equals(""))
+               pstmt.setString(i++, reservationCode);
+            if (!firstName.equals(""))
+               pstmt.setString(i++, firstName);
+            if (!lastName.equals(""))
+               pstmt.setString(i++, lastName);
+            if (!beginDate.equals("") && !endDate.equals("")) {
+               pstmt.setDate(i++, java.sql.Date.valueOf(beginDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(beginDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(endDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(endDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(beginDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(endDate));
+            }
+
+            ResultSet res = pstmt.executeQuery();
+            String roomName = "";
+            if(res.next())
+               roomName = res.getString(1);
+            System.out.printf("Code, Room, CheckIn, Checkout, Rate, LastName, Firstname, Adults, Kids, FullRoomName\n");
+            while(res.next())
+               System.out.printf("%d, %s, %s, %s, %d, %s, %s, %d, %d, %s\n",
+                     res.getInt("CODE"), res.getString("Room"), res.getString("CheckIn"), res.getString("Checkout"),
+                     res.getInt("Rate"), res.getString("Lastname"), res.getString("FirstName"), res.getInt("Adults"), res.getInt("Kids"),
+                     res.getString("RoomName"));
+        }
+        catch (SQLException e)
+        {
+            e.printStackTrace();
+            conn.rollback();
+        }   
+
+    }
+
     public static void main(String[] args)
     {
 
@@ -702,6 +781,7 @@ public class InnReservations
             System.out.println("2) Create a new reservation");
             System.out.println("3) Modify a reservation");
             System.out.println("4) Delete a reservation");
+            System.out.println("5) Search for a reservation");
             System.out.print("What would you like to do? (enter 'quit' to quit): ");
             String input = scanner.nextLine();
 
@@ -719,11 +799,16 @@ public class InnReservations
                 else if(input.equals("4")){
                     FRfour(conn);
                 }
+                else if(input.equals("5")){
+                    FRfive(conn);
+                }
                 System.out.println("----------------------\nInn Reservation Options");
                 System.out.println("1) ");
                 System.out.println("2) Create a new reservation");
+                System.out.println("3) Modify a reservation");
                 System.out.println("4) Delete a reservation");
-                System.out.print("What would you like to do? (enter 'quit' to quit):");
+                System.out.println("5) Search for a reservation");
+                System.out.print("What would you like to do? (enter 'quit' to quit): ");
                 input = scanner.nextLine();
             }
         }
