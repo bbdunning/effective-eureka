@@ -102,9 +102,9 @@ public class InnReservations
         String roomCode = scanner.nextLine();
         System.out.print("Enter desired bed type or \"Any\" for no preference: ");
         String bedType = scanner.nextLine();
-        System.out.print("Begin date of stay: ");
+        System.out.print("Begin date of stay (yyyy-mm-dd): ");
         String beginDate = scanner.nextLine();
-        System.out.print("End date of stay: ");
+        System.out.print("End date of stay (yyyy-mm-dd): ");
         String endDate = scanner.nextLine();
         System.out.print("Number of children: ");
         String children = scanner.nextLine();
@@ -833,8 +833,6 @@ public class InnReservations
         try
         {
             Class.forName("com.mysql.cj.jdbc.Driver");
-            System.out.println("MySQL JDBC Driver loaded");
-
 
         } catch (ClassNotFoundException ex)
         {
