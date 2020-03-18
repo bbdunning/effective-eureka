@@ -3,6 +3,7 @@ import java.util.Date;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Scanner;
 
 public class InnReservations
 {
@@ -184,13 +185,229 @@ public class InnReservations
 
     private static void FRtwo()
     {
-        System.out.println("Creating new Reservation");
-        System.out.print("Please enter first name of reservation: ");
+        //System.out.println("Creating new Reservation");
+        //System.out.print("Please enter first name of reservation: ");
 
 
-        System.out.print("Please enter Last name of reservation: ");
+        //System.out.print("Please enter Last name of reservation: ");
 
-        System.out.println("Enter desired room code or \"Any\" for no preference: ");
+        //System.out.println("Enter desired room code or \"Any\" for no preference: ");
+    }
+
+    private static void FRthree(Connection conn) throws SQLException
+    {
+        Scanner scanner = new Scanner(System.in);
+        String code = "";
+        String firstName = "";
+        String lastName = "";
+        String beginDate = "";
+        String endDate = "";
+        String numChild = "";
+        String numAdult = "";
+      
+        //Construct SQL statement
+        System.out.print("Enter a reservation code: ");
+        code = scanner.nextLine();
+        System.out.print("Enter a new first name (or Enter for no change): ");
+        firstName = scanner.nextLine();
+        System.out.print("Enter a new last name (or Enter for no change): ");
+        lastName = scanner.nextLine();
+        System.out.print("Enter a new begin date (or Enter for no change): ");
+        beginDate = scanner.nextLine();
+        System.out.print("Enter a new end date (or Enter for no change): ");
+        endDate = scanner.nextLine();
+        System.out.print("Enter a new number of children (or Enter for no change): ");
+        numChild = scanner.nextLine();
+        System.out.print("Enter a new number of adults (or Enter for no change): ");
+        numAdult = scanner.nextLine();
+
+        //update firstname if changed
+        if (!firstName.equals("")) {
+            String updateSql = "UPDATE lab7_reservations SET FirstName = ? WHERE CODE = ?";
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
+
+                // Step 4: Send SQL statement to DBMS
+                pstmt.setString(1, firstName); 
+                pstmt.setInt(2, Integer.valueOf(code));
+                int rowCount = pstmt.executeUpdate();
+
+                // Step 5: Handle results
+                System.out.format("Updated %d reservation%n", rowCount);
+
+                // Step 6: Commit or rollback transaction
+                conn.commit();
+            } 
+            catch (SQLException e) {
+                e.printStackTrace();
+                conn.rollback();
+            }
+        }
+
+        //update lastname if changed
+        if (!lastName.equals("")) {
+            String updateSql = "UPDATE lab7_reservations SET LastName = ? WHERE CODE = ?";
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
+
+                // Step 4: Send SQL statement to DBMS
+                pstmt.setString(1, lastName); 
+                pstmt.setInt(2, Integer.valueOf(code));
+                int rowCount = pstmt.executeUpdate();
+
+                // Step 5: Handle results
+                System.out.format("Updated %d reservation%n", rowCount);
+
+                // Step 6: Commit or rollback transaction
+                conn.commit();
+            } 
+            catch (SQLException e) {
+                e.printStackTrace();
+                conn.rollback();
+            }
+        }
+
+        //update begin date if changed
+        if (!beginDate.equals("") || !endDate.equals("")) {
+            conn.setAutoCommit(false);
+
+           //get start & end dates
+           if (beginDate.equals("")) {
+              String stmt = 
+                 "select checkin " +
+                 "from lab7_reservations " +
+                 "where code = ?";
+              try (PreparedStatement pstmt = conn.prepareStatement(stmt)) {
+                  pstmt.setString(1, code);
+                  ResultSet res = pstmt.executeQuery();
+                  if(res.next()){
+                     beginDate = res.getString(1);
+                     System.out.printf("beginDate: %s\n", beginDate);
+                  }
+              }
+           }
+           if (endDate.equals("")) {
+              String stmt = 
+                 "select checkout " +
+                 "from lab7_reservations " +
+                 "where code = ?";
+              try (PreparedStatement pstmt = conn.prepareStatement(stmt)) {
+                  pstmt.setString(1, code);
+                  ResultSet res = pstmt.executeQuery();
+                  if(res.next()){
+                     endDate = res.getString(1);
+                     System.out.printf("endDate: %s\n", endDate);
+                  }
+              }
+           }
+
+           //check for conflicts
+           String getRoomStmt = 
+              "select room " +
+              "from lab7_reservations " +
+              "where code = ?";
+          
+           String stmt = 
+              "select count(*) " +
+              "from lab7_reservations " +
+              "where room = ? and code != ? " +
+                 "and ((? >= CheckIn and ? <= Checkout) " +
+                 "or (? > CheckIn and ? <= Checkout) " +
+                 "or (? < CheckIn and ? > Checkout))";
+
+           try (PreparedStatement pstmt1 = conn.prepareStatement(getRoomStmt)) {
+               pstmt1.setString(1, code);
+               ResultSet res1 = pstmt1.executeQuery();
+               String roomName = "";
+               if(res1.next()){
+                  roomName = res1.getString(1);
+               }
+
+               try (PreparedStatement pstmt2 = conn.prepareStatement(stmt)) {
+                  pstmt2.setString(1, roomName);
+                  pstmt2.setInt(2, Integer.valueOf(code));
+                  pstmt2.setDate(3, java.sql.Date.valueOf(beginDate));
+                  pstmt2.setDate(4, java.sql.Date.valueOf(beginDate));
+                  pstmt2.setDate(5, java.sql.Date.valueOf(endDate));
+                  pstmt2.setDate(6, java.sql.Date.valueOf(endDate));
+                  pstmt2.setDate(7, java.sql.Date.valueOf(beginDate));
+                  pstmt2.setDate(8, java.sql.Date.valueOf(endDate));
+
+                  ResultSet res = pstmt2.executeQuery();
+                  res.next();
+                  int resCount = res.getInt("count(*)");
+                  if (resCount == 0) {
+                     String updateSql = "UPDATE lab7_reservations SET checkIn = ?, checkout = ? WHERE CODE = ?";
+
+                     try (PreparedStatement pstmt3 = conn.prepareStatement(updateSql)) {
+
+                         pstmt3.setDate(1, java.sql.Date.valueOf(beginDate)); 
+                         pstmt3.setDate(2, java.sql.Date.valueOf(endDate)); 
+                         pstmt3.setInt(3, Integer.valueOf(code)); 
+                         int rowCount = pstmt3.executeUpdate();
+
+                         System.out.format("Updated %d reservation%n", rowCount);
+
+                         conn.commit();
+                     } 
+                     catch (SQLException e) {
+                         e.printStackTrace();
+                         conn.rollback();
+                     }
+                  }
+                  else {
+                     System.out.println("conflict in dates");
+                  }
+               }
+            }
+        }
+
+        if (!numChild.equals("")) {
+            String updateSql = "UPDATE lab7_reservations SET LastName = ? WHERE CODE = ?";
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
+
+                // Step 4: Send SQL statement to DBMS
+                pstmt.setInt(1, Integer.valueOf(numChild)); 
+                pstmt.setInt(2, Integer.valueOf(code));
+                int rowCount = pstmt.executeUpdate();
+
+                // Step 5: Handle results
+                System.out.format("Updated %d reservation%n", rowCount);
+
+                // Step 6: Commit or rollback transaction
+                conn.commit();
+            } 
+            catch (SQLException e) {
+                e.printStackTrace();
+                conn.rollback();
+            }
+        }
+        if (!numAdult.equals("")) {
+            String updateSql = "UPDATE lab7_reservations SET LastName = ? WHERE CODE = ?";
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
+
+                // Step 4: Send SQL statement to DBMS
+                pstmt.setInt(1, Integer.valueOf(numAdult)); 
+                pstmt.setInt(2, Integer.valueOf(code));
+                int rowCount = pstmt.executeUpdate();
+
+                // Step 5: Handle results
+                System.out.format("Updated %d reservation%n", rowCount);
+
+                // Step 6: Commit or rollback transaction
+                conn.commit();
+            } 
+            catch (SQLException e) {
+                e.printStackTrace();
+                conn.rollback();
+            }
+        }
     }
 
     public static void main(String[] args)
@@ -218,6 +435,7 @@ public class InnReservations
             FRone(conn);
 
             FRtwo();
+            FRthree(conn);
             
         }
         catch (SQLException e)
