@@ -4,6 +4,10 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Scanner;
+import java.util.ArrayList;
+import java.util.List;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 public class InnReservations
 {
@@ -151,47 +155,284 @@ public class InnReservations
 
 
 
-//        try
-//        {
-//            Connection conn = DriverManager.getConnection("jdbc:mysql://csc365.toshikuboi.net:3306/group08", "group08", "group08@CSC365");
-//            Statement stmt = conn.createStatement();
-//            ResultSet rs = stmt.executeQuery("Select * from lab7_reservations");
-//
-////            DateFormat df = new SimpleDateFormat("MM/dd/yy");
-////            Date dateobj = new Date();
-////            System.out.println(df.format(dateobj));
-//
-////            Calendar cal = Calendar.getInstance();
-////
-////            System.out.println(cal.getTime());
-////            System.out.println(cal.get(Calendar.MONTH) + 1);
-////            System.out.println(cal.get(Calendar.DATE));
-////            System.out.println(cal.get(Calendar.YEAR));
-//
-//            while (rs.next())
-//            {
-//                String RoomCode = rs.getString("CODE");
-//                String checkIn = rs.getString("CheckIn");
-//                String Checkout = rs.getString("Checkout");
-//
-//                System.out.println(RoomCode + "  " + checkIn + "  " + Checkout);
-//
-//            }
-//        } catch (SQLException e)
-//        {
-//            e.printStackTrace();
-//        }
+
     }
 
-    private static void FRtwo()
+    private static void FRtwo(Connection conn) throws SQLException
     {
-        //System.out.println("Creating new Reservation");
-        //System.out.print("Please enter first name of reservation: ");
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Creating new Reservation");
+        System.out.println("------------------------");
+        System.out.print("Please enter first name of reservation: ");
+        String firstName = scanner.nextLine();
+        System.out.print("Please enter Last name of reservation: ");
+        String lastName = scanner.nextLine();
+        System.out.print("Enter desired room code or \"Any\" for no preference: ");
+        String roomCode = scanner.nextLine();
+        System.out.print("Enter desired bed type or \"Any\" for no preference: ");
+        String bedType = scanner.nextLine();
+        System.out.print("Begin date of stay: ");
+        String beginDate = scanner.nextLine();
+        System.out.print("End date of stay: ");
+        String endDate = scanner.nextLine();
+        System.out.print("Number of children: ");
+        String children = scanner.nextLine();
+        System.out.print("Number of adults: "); 
+        String adults = scanner.nextLine();
+        System.out.println("------------------------");
 
+        conn.setAutoCommit(false);
+        try{
+            Statement stmt = conn.createStatement();
+            ResultSet maxOcc = stmt.executeQuery("select max(maxOcc) as max from lab7_rooms");
+            int maxOccupancyRoom = 0;
+            while(maxOcc.next()){    
+                maxOccupancyRoom = maxOcc.getInt("max");
+            }
+            if(maxOccupancyRoom < Integer.valueOf(adults) + Integer.valueOf(children))
+            {
+                System.out.println("No suitable rooms are available");
+                return;
+            }
+        }
+        catch(SQLException e)
+        {
+            e.printStackTrace();
+        }
+        /*System.out.printf("%s--%s--%s--%s--%s--%s--%s--%s", firstName, lastName, roomCode,
+            bedType, beginDate, endDate, children, adults);*/
+        Boolean roomChosen = false;
+        Boolean bedTypeChosen = false;
+        String gimmeStuff = "SELECT DISTINCT RoomCode, RoomName, bedType, basePrice, maxOcc from lab7_rooms join lab7_reservations on lab7_reservations.Room = lab7_rooms.RoomCode " +
+                            "Where MaxOcc >= ? and RoomCode not in (" +
+                            "select distinct RoomCode from lab7_reservations join lab7_rooms " +
+                                "WHERE lab7_reservations.Room = lab7_rooms.RoomCode and " +
+                                    "((? >= CheckIn and ? < CheckOut) or " +
+                                    "(? < CheckIn and ? > CheckIn)))";
+        if(!roomCode.equals("Any"))
+        {
+            roomChosen = true;
+            gimmeStuff += " and Room = ?";
+        }
+        if(!bedType.equals("Any"))
+        {
+            bedTypeChosen = true;
+            gimmeStuff+= " and bedType = ?";
+        }
 
-        //System.out.print("Please enter Last name of reservation: ");
+        List<List<String>> results = new ArrayList<List<String>>();
+        int nextIndex = 6;
+        try (PreparedStatement pstmt = conn.prepareStatement(gimmeStuff)) {
+            pstmt.setInt(1, Integer.valueOf(children) + Integer.valueOf(adults));
+            pstmt.setDate(2, java.sql.Date.valueOf(beginDate));
+            pstmt.setDate(3, java.sql.Date.valueOf(beginDate));
+            pstmt.setDate(4, java.sql.Date.valueOf(beginDate));
+            pstmt.setDate(5, java.sql.Date.valueOf(endDate));
+            if(roomChosen)
+            {
+                pstmt.setString(nextIndex++,roomCode);
+            }
+            if(bedTypeChosen)
+            {
+                pstmt.setString(nextIndex,bedType);
+            }
+            ResultSet rs = pstmt.executeQuery();
+            int matchCount = 0;
+            while(rs.next()){
+                if(matchCount==0)
+                {
+                    System.out.println("Here are the rooms that matched your criteria: ");
+                }
+                List<String> result = new ArrayList<String>();
+                result.add(rs.getString("RoomCode"));
+                result.add(rs.getString("RoomName"));                    
+                result.add(rs.getString("bedType"));
+                result.add(rs.getString("basePrice"));
+                result.add(rs.getString("MaxOcc"));
+                results.add(result);
+                System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: $%s\n", 
+                                    ++matchCount, results.get(matchCount-1).get(0),results.get(matchCount-1).get(1), results.get(matchCount-1).get(4),results.get(matchCount-1).get(2), results.get(matchCount-1).get(3));
+            }
+            //If no matches were found...show them other options
+            if(matchCount==0)
+            {
+                System.out.println("No exact matches were found :(.");
+                System.out.println("Here are some similar options based on the dates that you entered");
+                GiveSimilarOptions(conn, beginDate, endDate, firstName, lastName, adults, children);
+            }
+            //If matches were found allow them to select one of the rooms
+            else
+            {
+                System.out.println("If you do not wish to book any of these rooms enter *cancel*");
+                System.out.print("Please select a room by entering the option number: ");
+                String roomPicked = scanner.nextLine();
+                if(!roomPicked.equals("cancel"))
+                {
+                    Integer roomPickedInt = Integer.valueOf(roomPicked)-1; //convert user input to array index
+                    System.out.println("-----BOOKING INFORMATION-----");
+                    System.out.printf("First Name: %s\nLast Name: %s\n", firstName, lastName);
+                    System.out.printf("Room Code: %s\nRoom Name: %s\nBed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
+                    System.out.printf("Adults: %s\n", adults);
+                    System.out.printf("Kids: %s\n", children);
+                    System.out.printf("Total Cost: $%.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
+                    BookTheDamnRoom(conn, results.get(roomPickedInt).get(0), beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3)), firstName, lastName, adults, children);
+                }
+            }
+            conn.commit();
+        }
+        catch(SQLException e){
+            conn.rollback();
+            e.printStackTrace();    
+        }
+    }
 
-        //System.out.println("Enter desired room code or \"Any\" for no preference: ");
+    private static void GiveSimilarOptions(Connection conn, String beginDate, String endDate, String firstName, String lastName, String adults, String children)
+    {
+        Scanner scanner = new Scanner(System.in);
+        String similarListings = "with suggestedDates as (" +
+            "with recursive C(TheDate) as " + 
+            "(" +
+              "select '2020-01-01' " + 
+              "union all " + 
+              "select date_add(TheDate, Interval 1 Day) " + 
+              "from C " + 
+              "where TheDate < '2020-12-31' " + 
+            ")" +
+            "select C.TheDate as startDate, C1.TheDate as endDate " +
+            "from C " +
+            "inner join C as C1 on " + 
+            "C1.TheDate between date_add(C.TheDate, INTERVAL 1 DAY) and date_add(C.TheDate, INTERVAL ? DAY) and " +
+            "C.TheDate between date_sub( ?, INTERVAL 14 DAY) and date_add( ?, INTERVAL 14 DAY) " + 
+            "order by C.TheDate, C1.TheDate" + 
+        ") " + 
+        "select RoomCode, RoomName, bedType, basePrice, maxOcc, startDate, endDate from suggestedDates as sd1 " + 
+        "join lab7_rooms as r1 " + 
+        "where not exists(" +
+            "select RoomCode, startDate, endDate from suggestedDates " + 
+            "inner join lab7_reservations on " + 
+            "((startDate >= CheckIn and startDate < CheckOut) or " + 
+            "(startDate < CheckIn and endDate > CheckIn)) " + 
+            "inner join lab7_rooms as r2 on " + 
+                "lab7_reservations.Room = r2.RoomCode " +
+            "where r1.RoomCode = r2.RoomCode and startDate = sd1.startDate and endDate = sd1.endDate " + 
+            "group by r2.RoomCode, startDate, DATEDIFF(startDate, endDate), endDate" +
+        ") " +
+        "order by ABS(?-DATEDIFF(endDate,startDate)), ABS(DATEDIFF(?, startDate)), startDate";
+
+        List<List<String>> results = new ArrayList<List<String>>();
+        LocalDate startD = LocalDate.parse(beginDate);
+        LocalDate endD = LocalDate.parse(endDate);
+        long dateRange = ChronoUnit.DAYS.between(startD, endD);
+        try (PreparedStatement pstmt = conn.prepareStatement(similarListings)) {
+            pstmt.setInt(1, (int)dateRange);
+            pstmt.setDate(2, java.sql.Date.valueOf(beginDate));
+            pstmt.setDate(3, java.sql.Date.valueOf(beginDate));
+            pstmt.setInt(4, (int)dateRange);
+            pstmt.setDate(5, java.sql.Date.valueOf(beginDate));
+
+            ResultSet rs = pstmt.executeQuery();
+            int matchCount = 0;
+            while(rs.next() && matchCount++ < 5){
+                List<String> result = new ArrayList<String>();
+                result.add(rs.getString("RoomCode"));
+                result.add(rs.getString("RoomName"));                    
+                result.add(rs.getString("bedType"));
+                result.add(rs.getString("basePrice"));
+                result.add(rs.getString("MaxOcc"));
+                result.add(rs.getString("startDate"));
+                result.add(rs.getString("endDate"));
+                results.add(result);
+            }
+        }
+        catch(SQLException e)
+        {
+            e.printStackTrace();
+        }
+        for (int i=0; i< results.size(); i++) 
+        { 
+            List<String> result = results.get(i);
+            System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: $%s\n", 
+                                i + 1, result.get(0), result.get(1),result.get(4),result.get(2),result.get(3));
+            System.out.format("Start Date: %s\nEnd Date: %s\n", result.get(5), result.get(6));
+        }    
+
+        System.out.println("If you do not wish to book any of these rooms enter *cancel*");
+        System.out.print("Please select a room by entering the option number: ");
+        String roomPicked = scanner.nextLine();
+        if(!roomPicked.equals("cancel")){
+            Integer roomPickedInt = Integer.valueOf(roomPicked)-1; //convert user input to array index
+            System.out.println("-----BOOKING INFORMATION-----");
+            System.out.printf("First Name: %s\nLast Name: %s\n", firstName, lastName);
+            System.out.printf("Room Code: %s\nRoom Name: %s\nBed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
+            System.out.printf("Adults: %s\n", adults);
+            System.out.printf("Kids: %s\n", children);
+            System.out.printf("Total Cost: $%.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
+            BookTheDamnRoom(conn, results.get(roomPickedInt).get(0), beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3)), firstName, lastName, adults, children);
+        }
+    } 
+    private static float calculateTotalCost(String startDate, String endDate, float basePrice)
+    {
+        float totalCost = 0;
+        LocalDate startD = LocalDate.parse(startDate); 
+        LocalDate endD = LocalDate.parse(endDate);
+        for (LocalDate date = startD; date.isBefore(endD); date = date.plusDays(1))
+        {
+            if(date.getDayOfWeek().name().equals("SUNDAY") || date.getDayOfWeek().name().equals("SATURDAY"))
+            {
+                totalCost += basePrice * 1.1;
+            }
+            else
+            {
+                totalCost +=basePrice;
+            }
+        }
+        return (totalCost * 1.18f);
+    }
+
+    private static void BookTheDamnRoom(Connection conn, String roomCode, String beginDate, String endDate, float basePrice, String firstName, String lastName, String adults, String children)
+    {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Would you like to book the room?");
+        System.out.print("Enter *yes* to confirm and *cancel* to return to the main menu: ");
+        String decision = scanner.nextLine();
+        if(decision.equals("cancel"))
+        {
+            return;
+        }
+        else
+        {
+            int newResCode = 0;
+            try(Statement findMaxResCode = conn.createStatement())
+            {
+                ResultSet resCode = findMaxResCode.executeQuery("select max(CODE)+1 as maxResCode from lab7_reservations");
+                //Insert new entry to our table
+                while(resCode.next()){    
+                    newResCode = resCode.getInt("maxResCode");
+                }
+            }
+            catch(SQLException e){
+                e.printStackTrace();
+            }
+
+            String insertNewRes = "Insert into lab7_reservations (CODE, Room, CheckIn, CheckOut, Rate, LastName, FirstName, Adults, Kids)" +
+                                " values( ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            try(PreparedStatement pstmt = conn.prepareStatement(insertNewRes)){
+                pstmt.setInt(1, newResCode);
+                pstmt.setString(2, roomCode);
+                pstmt.setDate(3, java.sql.Date.valueOf(beginDate));
+                pstmt.setDate(4, java.sql.Date.valueOf(endDate));
+                pstmt.setDouble(5, basePrice);
+                pstmt.setString(6, lastName);
+                pstmt.setString(7, firstName);
+                pstmt.setInt(8, Integer.valueOf(adults));
+                pstmt.setInt(9, Integer.valueOf(children));
+                int row = pstmt.executeUpdate();
+                System.out.println("Your booking has been confirmed!");
+            }
+            catch(SQLException e){
+                e.printStackTrace();
+            }
+        }
     }
 
     private static void FRthree(Connection conn) throws SQLException
@@ -410,6 +651,30 @@ public class InnReservations
         }
     }
 
+    private static void FRfour(Connection conn) throws SQLException
+    {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter the reservation code of the reservation you would like to cancel: ");
+        String code = scanner.nextLine();
+        String deleteRes = "delete from lab7_reservations where CODE = ?";
+        conn.setAutoCommit(false);
+        try (PreparedStatement pstmt = conn.prepareStatement(deleteRes)) {
+            pstmt.setString(1, code);
+            int row = pstmt.executeUpdate();
+            if(row>0){
+                System.out.printf("Reservation %s has been successfully canceled\n", code);
+            }
+            else{
+                System.out.printf("There is no reservations with the code %s\n", code);
+            }
+            conn.commit();
+        }
+        catch(SQLException e){
+            conn.rollback();
+            e.printStackTrace();
+        }
+    }
+
     public static void main(String[] args)
     {
 
@@ -429,21 +694,42 @@ public class InnReservations
         {
             Connection conn = DriverManager.getConnection(
                 "jdbc:mysql://db.labthreesixfive.com/rjmiddle?autoReconnect=true&useSSL=false",
-                "rjmiddle",
-                "WinterTwenty20_365_013793295");
+                "ettucker",
+                "WinterTwenty20_365_014575934");
+            Scanner scanner = new Scanner(System.in);
+            System.out.println("----------------------\nInn Reservation Options");
+            System.out.println("1) ");
+            System.out.println("2) Create a new reservation");
+            System.out.println("3) Modify a reservation");
+            System.out.println("4) Delete a reservation");
+            System.out.print("What would you like to do? (enter 'quit' to quit): ");
+            String input = scanner.nextLine();
 
-            FRone(conn);
-
-            FRtwo();
-            FRthree(conn);
-            
+            while(input.toLowerCase() !="quit")
+            {
+                if(input.equals("1")){
+                    FRone(conn);
+                }
+                else if(input.equals("2")){
+                    FRtwo(conn);
+                }
+                else if(input.equals("3")){
+                    FRthree(conn);
+                }
+                else if(input.equals("4")){
+                    FRfour(conn);
+                }
+                System.out.println("----------------------\nInn Reservation Options");
+                System.out.println("1) ");
+                System.out.println("2) Create a new reservation");
+                System.out.println("4) Delete a reservation");
+                System.out.print("What would you like to do? (enter 'quit' to quit):");
+                input = scanner.nextLine();
+            }
         }
         catch (SQLException e)
         {
             e.printStackTrace();
         }   
-
-       
-        
     }
 }
