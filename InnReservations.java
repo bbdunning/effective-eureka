@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.text.DateFormatSymbols;
+
 
 public class InnReservations
 {
@@ -18,7 +20,7 @@ public class InnReservations
             Statement stmt = conn.createStatement();
 
             ResultSet rs = stmt.executeQuery(
-                "select rooms.*, f.pop, s.Checkin, t.CheckOut " +
+                "select rooms.*, f.pop, s.Checkin, t.lastStayLength, t.CheckOut " +
                 "from " +
                 "( " +
                     "Select Room, round(Sum(DATEDIFF(CheckOut, Greatest(DATE_SUB(CURDATE(), INTERVAL 180 DAY), Checkin))) / 180, 2) as pop " +
@@ -42,10 +44,10 @@ public class InnReservations
                 "on f.Room = s.Room " +
                 "inner join " +
                 "( " +
-                    "select Room, CheckOut " +
+                    "select Room, CheckOut, DATEDIFF(CheckOut, Checkin) as lastStayLength " +
                     "from " +
                     "( " +
-                        "Select distinct Room, CheckOut, DATEDIFF(CURDATE(), CheckOut) as diff, " +
+                        "Select distinct Room, CheckIn, CheckOut, DATEDIFF(CURDATE(), CheckOut) as diff, " +
                             "min(DATEDIFF(CURDATE(), CheckOut)) over (partition by Room) as mindiff " +
                         "from lab7_reservations " +
                         "where DATEDIFF(CURDATE(), CheckOut) > 0 " +
@@ -54,7 +56,7 @@ public class InnReservations
                 ") t " +
                 "on f.Room = t.Room " +
                 "inner join lab7_rooms as rooms on RoomCode = f.Room " +
-                "order by f.pop;");
+                "order by f.pop desc;");
 
             while (rs.next())
             {
@@ -68,95 +70,19 @@ public class InnReservations
 
                 String pop = rs.getString("pop");
                 String checkin = rs.getString("Checkin");
+                int lastStayLength = rs.getInt("lastStayLength");
                 String checkout = rs.getString("CheckOut");
-                // System.out.println(roomCode + "  " + roomName + "  " 
-                //     + numBeds + "  " + bedType + " "
-                //     + maxOcc + " " + basePrice + " "
-                //     + decor + " " + pop + " "
-                //     + checkin + " " + checkout);
-                System.out.printf("%5s  %-25s %2d %-8s %d %-6.2f %-15s %-4s %10s %10s\n", roomCode, roomName, numBeds, 
-                    bedType, maxOcc, basePrice, decor, pop, checkin, checkout);
+            
+                System.out.printf("%5s  %-25s %2d %-8s %d %-6.2f %-15s %-4s %10s %d %10s\n", roomCode, roomName, numBeds, 
+                    bedType, maxOcc, basePrice, decor, pop, checkin, lastStayLength, checkout);
             }
         }
         catch (SQLException e)
         {
             e.printStackTrace();
         }   
-            
-
     }
 
-    private static void learningOne(Connection conn)
-    {
-       
-
-        try
-        {
-            
-            Statement stmt = conn.createStatement();
-
-            //Manually has the 180 day back date and current date
-            ResultSet rs = stmt.executeQuery(
-                "Select Room, round(Sum(DATEDIFF(CheckOut, Greatest(DATE_SUB(CURDATE(), INTERVAL 180 DAY), Checkin))) / 180, 2) as pop " +
-                "from lab7_reservations " +
-                "where DATEDIFF(CURDATE(), CheckOut) <= 180 " +
-                "and DATEDIFF(CURDATE(), CheckOut) > 0 " + 
-                "group by Room " +
-                "order by pop desc;");
-
-            while (rs.next())
-            {
-                String RoomCode = rs.getString("Room");
-                String count = rs.getString("pop");
-                System.out.println(RoomCode + "  " + count);
-            }
-            System.out.println("\n\n");
-
-            Statement stmt2 = conn.createStatement();
-            ResultSet rs2 = stmt2.executeQuery("select Room, Checkin " +
-            "from " +
-            "( " +
-                "Select distinct Room, Checkin, DATEDIFF(Checkin, CURDATE()) as diff, " +
-                    "min(DATEDIFF(Checkin, CURDATE())) over (partition by Room) as mindiff " +
-                "from lab7_reservations " +
-                "where DATEDIFF(Checkin, CURDATE()) > 0 " +
-            ") a " +
-            "where diff = mindiff;"); 
-
-            while (rs2.next())
-            {
-                String RoomCode = rs2.getString("Room");
-                String checkin = rs2.getString("Checkin");
-                System.out.println(RoomCode + "  " + checkin);
-            }
-            System.out.println("\n\n");
-            Statement stmt3 = conn.createStatement();
-            ResultSet rs3 = stmt3.executeQuery("select Room, CheckOut " +
-            "from " +
-            "( " +
-                "Select distinct Room, CheckOut, DATEDIFF(CURDATE(), CheckOut) as diff, " +
-                    "min(DATEDIFF(CURDATE(), CheckOut)) over (partition by Room) as mindiff " +
-                "from lab7_reservations " +
-                "where DATEDIFF(CURDATE(), CheckOut) > 0 " +
-            ") a " +
-            "where diff = mindiff;"); 
-
-            while (rs3.next())
-            {
-                String RoomCode = rs3.getString("Room");
-                String checkout = rs3.getString("CheckOut");
-                System.out.println(RoomCode + "  " + checkout);
-            }
-
-        } catch (SQLException e)
-        {
-            e.printStackTrace();
-        }
-
-
-
-
-    }
 
     private static void FRtwo(Connection conn) throws SQLException
     {
@@ -754,6 +680,148 @@ public class InnReservations
 
     }
 
+    private static int printMonthRevs(String curRoom, ArrayList<Integer> roomMonthRevs)
+    {
+        int numMonthsNoRev = 12 - roomMonthRevs.size();
+        for (int i = 0; i < numMonthsNoRev; i++) //Padding Months with 0 revenue
+        {
+            roomMonthRevs.add(0);
+        }
+
+        System.out.printf("%-30s", curRoom);
+
+        for (Integer rev : roomMonthRevs)
+        {
+            System.out.printf("%9d ", rev);
+        }
+        int yearRev = roomMonthRevs.stream().mapToInt(a -> a).sum();
+        System.out.printf("%15d" , yearRev);
+        System.out.println();
+
+        return yearRev;
+    }
+
+    private static void printColTotals(Statement stmt, int totalYearRevenue)
+    {
+        try
+        {
+            ResultSet rs = stmt.executeQuery(
+                "with recursive C(TheDate) as " +
+                "(" +
+                "select MAKEDATE(year(now()),1) " +
+                "union all " +
+                "select date_add(TheDate, Interval 1 Day) " +
+                "from C " +
+                "where TheDate < last_day(MAKEDATE(year(now()),360))" +
+                "), " +
+                "myq as ( " +
+                "select RoomName, Month(TheDate) as MonthNum, round(Sum(Rate)) as MonthSum " +
+                "from C " +
+                "inner join lab7_reservations on TheDate >= CheckIn " +
+                "and TheDate < CheckOut " +
+                "inner join lab7_rooms on RoomCode = Room " +
+                "group by Room, Month(TheDate) " +
+                "order by Room" +
+                ") " +
+                "select MonthNum, sum(MonthSum) as AllRoomsMonthSum " +
+                "from myq " +
+                "group by MonthNum;");
+
+            ArrayList<Integer> colTotals = new ArrayList<Integer>();
+            while (rs.next())
+            {
+                colTotals.add(rs.getInt("AllRoomsMonthSum"));
+                // System.out.printf("%9d ", rs.getInt("AllRoomsMonthSum"));
+            }
+
+            int numMonthsNoRev = 12 - colTotals.size();
+            for (int i = 0; i < numMonthsNoRev; i++) //Padding Months with 0 revenue
+            {
+                colTotals.add(0);
+            }
+
+            System.out.printf("%-30s", "Totals");
+            for (Integer colTotal : colTotals)
+            {
+                System.out.printf("%9d ", colTotal);
+            }
+            System.out.printf("%15d\n", totalYearRevenue);      
+        }
+        catch (SQLException e)
+        {
+            e.printStackTrace();
+        } 
+    }
+
+    private static void FRsix(Connection conn)
+    {
+        try
+        {
+            Statement stmt = conn.createStatement();
+
+            ResultSet rs = stmt.executeQuery(
+                "with recursive C(TheDate) as " +
+                "(" +
+                  "select MAKEDATE(year(now()),1) " +
+                  "union all " +
+                  "select date_add(TheDate, Interval 1 Day) " +
+                  "from C " +
+                  "where TheDate < last_day(MAKEDATE(year(now()),360))" +
+                ") " +
+                "select RoomName, Month(TheDate) as MonthNum, round(Sum(Rate)) as MonthSum " +
+                "from C " +
+                "inner join lab7_reservations on TheDate >= CheckIn " +
+                "and TheDate < CheckOut " +
+                "inner join lab7_rooms on RoomCode = Room " +
+                "group by Room, Month(TheDate) " +
+                "order by Room;");
+ 
+            String curRoom = "";
+            ArrayList<Integer> roomRevList = new ArrayList<Integer>();
+
+            System.out.printf("%-30s", "Room");
+            String[] months = new DateFormatSymbols().getMonths(); //Gets month names
+            for (int i = 0; i < 12; i++) //Prints months, 9 chars cause length of longest month name
+            {
+                System.out.printf("%9s ", months[i]);
+            }
+            System.out.printf("%15s", "Yearly Revenue");
+
+            System.out.println();
+
+            int totalYearRevenue = 0;
+            while (rs.next())
+            {
+                if (curRoom.equals(""))
+                {
+                    curRoom = rs.getString("RoomName");
+                    roomRevList.add(rs.getInt("MonthSum"));
+                }
+                else if (rs.getString("RoomName").equals(curRoom))
+                {
+                    roomRevList.add(rs.getInt("MonthSum"));
+                }
+                else
+                {
+                    totalYearRevenue += printMonthRevs(curRoom, roomRevList); //Gives back room year revenue;
+                    
+                    curRoom = "";
+                    roomRevList.clear();
+                    rs.previous();
+                }
+            }
+            //Handles last room in list
+            totalYearRevenue += printMonthRevs(curRoom, roomRevList); //Gives back room year revenue;
+            
+            printColTotals(stmt, totalYearRevenue); 
+
+        }
+        catch (SQLException e)
+        {
+            e.printStackTrace();
+        }  
+    }
+
     public static void main(String[] args)
     {
 
@@ -777,15 +845,16 @@ public class InnReservations
                 "WinterTwenty20_365_014575934");
             Scanner scanner = new Scanner(System.in);
             System.out.println("----------------------\nInn Reservation Options");
-            System.out.println("1) ");
+            System.out.println("1) Room popularity");
             System.out.println("2) Create a new reservation");
             System.out.println("3) Modify a reservation");
             System.out.println("4) Delete a reservation");
-            System.out.println("5) Search for a reservation");
+            System.out.println("5) Detailed reservation information");
+            System.out.println("6) Monthly room revenue");
             System.out.print("What would you like to do? (enter 'quit' to quit): ");
             String input = scanner.nextLine();
 
-            while(input.toLowerCase() !="quit")
+            while(!input.toLowerCase().equals("quit"))
             {
                 if(input.equals("1")){
                     FRone(conn);
@@ -802,12 +871,16 @@ public class InnReservations
                 else if(input.equals("5")){
                     FRfive(conn);
                 }
+                else if(input.equals("6")){
+                    FRsix(conn);
+                }
                 System.out.println("----------------------\nInn Reservation Options");
-                System.out.println("1) ");
+                System.out.println("1) Room popularity");
                 System.out.println("2) Create a new reservation");
                 System.out.println("3) Modify a reservation");
                 System.out.println("4) Delete a reservation");
-                System.out.println("5) Search for a reservation");
+                System.out.println("5) Detailed reservation information");
+                System.out.println("6) Monthly room revenue");
                 System.out.print("What would you like to do? (enter 'quit' to quit): ");
                 input = scanner.nextLine();
             }
