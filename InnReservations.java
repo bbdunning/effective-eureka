@@ -72,11 +72,7 @@ public class InnReservations
                 String checkin = rs.getString("Checkin");
                 int lastStayLength = rs.getInt("lastStayLength");
                 String checkout = rs.getString("CheckOut");
-                // System.out.println(roomCode + "  " + roomName + "  " 
-                //     + numBeds + "  " + bedType + " "
-                //     + maxOcc + " " + basePrice + " "
-                //     + decor + " " + pop + " "
-                //     + checkin + " " + checkout);
+            
                 System.out.printf("%5s  %-25s %2d %-8s %d %-6.2f %-15s %-4s %10s %d %10s\n", roomCode, roomName, numBeds, 
                     bedType, maxOcc, basePrice, decor, pop, checkin, lastStayLength, checkout);
             }
@@ -605,6 +601,84 @@ public class InnReservations
         }
     }
 
+    private static void FRfive(Connection conn) throws SQLException
+    {
+        Scanner scanner = new Scanner(System.in);
+        String roomCode = "";
+        String reservationCode = "";
+        String firstName = "";
+        String lastName = "";
+        String beginDate = "";
+        String endDate = "";
+
+        //get input
+        System.out.print("Enter a room code (or Enter for Any): ");
+        roomCode = scanner.nextLine();
+        System.out.print("Enter a reservation code (or Enter for Any): ");
+        reservationCode = scanner.nextLine();
+        System.out.print("Enter a first name (or Enter for Any): ");
+        firstName = scanner.nextLine();
+        System.out.print("Enter a last name (or Enter for Any): ");
+        lastName = scanner.nextLine();
+        System.out.print("Enter a begin date (or Enter for Any): ");
+        beginDate = scanner.nextLine();
+        System.out.print("Enter a end date (or Enter for Any): ");
+        endDate = scanner.nextLine();
+        
+        conn.setAutoCommit(false);
+
+        String stmt = "select * from lab7_reservations join lab7_rooms on Room=RoomCode where room LIKE '%'";
+
+        if (!roomCode.equals("")) 
+           stmt += "and room LIKE ? ";
+        if (!reservationCode.equals(""))
+           stmt += "and code LIKE ? ";
+        if (!firstName.equals(""))
+           stmt += "and firstName LIKE ? ";
+        if (!lastName.equals("")) 
+           stmt += "and lastName LIKE ? ";
+        if (!beginDate.equals("") && !endDate.equals(""))
+           stmt += "and ((? >= CheckIn and ? <= Checkout) " +
+                 "or (? > CheckIn and ? <= Checkout) " +
+                 "or (? < CheckIn and ? > Checkout))";
+
+        try (PreparedStatement pstmt = conn.prepareStatement(stmt)) {
+            int i = 1;
+            if (!roomCode.equals(""))
+               pstmt.setString(i++, roomCode);
+            if (!reservationCode.equals(""))
+               pstmt.setString(i++, reservationCode);
+            if (!firstName.equals(""))
+               pstmt.setString(i++, firstName);
+            if (!lastName.equals(""))
+               pstmt.setString(i++, lastName);
+            if (!beginDate.equals("") && !endDate.equals("")) {
+               pstmt.setDate(i++, java.sql.Date.valueOf(beginDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(beginDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(endDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(endDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(beginDate));
+               pstmt.setDate(i++, java.sql.Date.valueOf(endDate));
+            }
+
+            ResultSet res = pstmt.executeQuery();
+            String roomName = "";
+            if(res.next())
+               roomName = res.getString(1);
+            System.out.printf("Code, Room, CheckIn, Checkout, Rate, LastName, Firstname, Adults, Kids, FullRoomName\n");
+            while(res.next())
+               System.out.printf("%d, %s, %s, %s, %d, %s, %s, %d, %d, %s\n",
+                     res.getInt("CODE"), res.getString("Room"), res.getString("CheckIn"), res.getString("Checkout"),
+                     res.getInt("Rate"), res.getString("Lastname"), res.getString("FirstName"), res.getInt("Adults"), res.getInt("Kids"),
+                     res.getString("RoomName"));
+        }
+        catch (SQLException e)
+        {
+            e.printStackTrace();
+            conn.rollback();
+        }   
+
+    }
 
     private static int printMonthRevs(String curRoom, ArrayList<Integer> roomMonthRevs)
     {
@@ -740,11 +814,12 @@ public class InnReservations
             totalYearRevenue += printMonthRevs(curRoom, roomRevList); //Gives back room year revenue;
             
             printColTotals(stmt, totalYearRevenue); 
+
         }
         catch (SQLException e)
         {
             e.printStackTrace();
-        }   
+        }  
     }
 
     public static void main(String[] args)
@@ -794,7 +869,7 @@ public class InnReservations
                     FRfour(conn);
                 }
                 else if(input.equals("5")){
-                    System.out.println("nned to be implemnented");
+                    FRfive(conn);
                 }
                 else if(input.equals("6")){
                     FRsix(conn);
