@@ -158,7 +158,7 @@ public class InnReservations
 
     }
 
-    private static void FRtwo(Connection conn)
+    private static void FRtwo(Connection conn) throws SQLException
     {
         Scanner scanner = new Scanner(System.in);
         System.out.println("Creating new Reservation");
@@ -181,6 +181,7 @@ public class InnReservations
         String adults = scanner.nextLine();
         System.out.println("------------------------");
 
+        conn.setAutoCommit(false);
         try{
             Statement stmt = conn.createStatement();
             ResultSet maxOcc = stmt.executeQuery("select max(maxOcc) as max from lab7_rooms");
@@ -249,7 +250,7 @@ public class InnReservations
                 result.add(rs.getString("basePrice"));
                 result.add(rs.getString("MaxOcc"));
                 results.add(result);
-                System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: %s\n", 
+                System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: $%s\n", 
                                     ++matchCount, results.get(matchCount-1).get(0),results.get(matchCount-1).get(1), results.get(matchCount-1).get(4),results.get(matchCount-1).get(2), results.get(matchCount-1).get(3));
             }
             //If no matches were found...show them other options
@@ -258,7 +259,6 @@ public class InnReservations
                 System.out.println("No exact matches were found :(.");
                 System.out.println("Here are some similar options based on the dates that you entered");
                 GiveSimilarOptions(conn, beginDate, endDate, firstName, lastName, adults, children);
-                return;
             }
             //If matches were found allow them to select one of the rooms
             else
@@ -266,11 +266,7 @@ public class InnReservations
                 System.out.println("If you do not wish to book any of these rooms enter *cancel*");
                 System.out.print("Please select a room by entering the option number: ");
                 String roomPicked = scanner.nextLine();
-                if(roomPicked.equals("cancel"))
-                {
-                    return;
-                }
-                else
+                if(!roomPicked.equals("cancel"))
                 {
                     Integer roomPickedInt = Integer.valueOf(roomPicked)-1; //convert user input to array index
                     System.out.println("-----BOOKING INFORMATION-----");
@@ -278,12 +274,14 @@ public class InnReservations
                     System.out.printf("Room Code: %s\nRoom Name: %s\nBed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
                     System.out.printf("Adults: %s\n", adults);
                     System.out.printf("Kids: %s\n", children);
-                    System.out.printf("Total Cost: %.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
+                    System.out.printf("Total Cost: $%.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
                     BookTheDamnRoom(conn, results.get(roomPickedInt).get(0), beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3)), firstName, lastName, adults, children);
                 }
             }
+            conn.commit();
         }
         catch(SQLException e){
+            conn.rollback();
             e.printStackTrace();    
         }
     }
@@ -352,7 +350,7 @@ public class InnReservations
         for (int i=0; i< results.size(); i++) 
         { 
             List<String> result = results.get(i);
-            System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: %s\n", 
+            System.out.format("%d) %s\nRoom Name: %s\nMax Occupancy: %s\nBed Type: %s\nBase Price: $%s\n", 
                                 i + 1, result.get(0), result.get(1),result.get(4),result.get(2),result.get(3));
             System.out.format("Start Date: %s\nEnd Date: %s\n", result.get(5), result.get(6));
         }    
@@ -367,7 +365,7 @@ public class InnReservations
             System.out.printf("Room Code: %s\nRoom Name: %s\nBed Type: %s\n", results.get(roomPickedInt).get(0), results.get(roomPickedInt).get(1), results.get(roomPickedInt).get(2));
             System.out.printf("Adults: %s\n", adults);
             System.out.printf("Kids: %s\n", children);
-            System.out.printf("Total Cost: %.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
+            System.out.printf("Total Cost: $%.2f\n", calculateTotalCost(beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3))));
             BookTheDamnRoom(conn, results.get(roomPickedInt).get(0), beginDate, endDate, Float.parseFloat(results.get(roomPickedInt).get(3)), firstName, lastName, adults, children);
         }
     } 
@@ -436,18 +434,26 @@ public class InnReservations
         }
     }
 
-    private static void FRfour(Connection conn)
+    private static void FRfour(Connection conn) throws SQLException
     {
         Scanner scanner = new Scanner(System.in);
         System.out.print("Enter the reservation code of the reservation you would like to cancel: ");
         String code = scanner.nextLine();
         String deleteRes = "delete from lab7_reservations where CODE = ?";
+        conn.setAutoCommit(false);
         try (PreparedStatement pstmt = conn.prepareStatement(deleteRes)) {
             pstmt.setString(1, code);
             int row = pstmt.executeUpdate();
-            System.out.printf("Reservation %s has been successfully canceled\n", code);
+            if(row>0){
+                System.out.printf("Reservation %s has been successfully canceled\n", code);
+            }
+            else{
+                System.out.printf("There is no reservations with the code %s\n", code);
+            }
+            conn.commit();
         }
         catch(SQLException e){
+            conn.rollback();
             e.printStackTrace();
         }
     }
@@ -468,10 +474,13 @@ public class InnReservations
 
         try
         {
+            String dbUsername = System.getenv("APP_JDBC_USER");
+            String dbPassword = System.getenv("APP_JDBC_PW");
+            String dbURL = System.getenv("APP_JDBC_URL");
             Connection conn = DriverManager.getConnection(
-                "jdbc:mysql://db.labthreesixfive.com/rjmiddle?autoReconnect=true&useSSL=false",
-                "ettucker",
-                "WinterTwenty20_365_014575934");
+                dbURL,
+                dbUsername,
+                dbPassword);
             Scanner scanner = new Scanner(System.in);
             System.out.println("----------------------\nInn Reservation Options");
             System.out.println("1) ");
@@ -480,7 +489,7 @@ public class InnReservations
             System.out.print("What would you like to do? (enter 'quit' to quit): ");
             String input = scanner.nextLine();
 
-            while(input.toLowerCase() !="quit")
+            while(!input.toLowerCase().equals("quit"))
             {
                 if(input.equals("1")){
                     FRone(conn);
@@ -495,7 +504,7 @@ public class InnReservations
                 System.out.println("1) ");
                 System.out.println("2) Create a new reservation");
                 System.out.println("4) Delete a reservation");
-                System.out.print("What would you like to do? (enter 'quit' to quit):");
+                System.out.print("What would you like to do? (enter 'quit' to quit): ");
                 input = scanner.nextLine();
             }
         }
