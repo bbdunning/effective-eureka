@@ -58,6 +58,10 @@ public class InnReservations
                 "inner join lab7_rooms as rooms on RoomCode = f.Room " +
                 "order by f.pop desc;");
 
+            System.out.printf("%8s %-25s %4s %-8s %6s %9s %-15s %10s %15s %16s %10s\n", 
+                "RoomCode", "RoomName", "Beds", "BedType", "MaxOcc", "BasePrice", "Decor", 
+                "Popularity", "NextAvilCheckIn", "LengthOfLastStay", "LastCheckoutDate");
+                
             while (rs.next())
             {
                 String roomCode = rs.getString("RoomCode");
@@ -73,7 +77,8 @@ public class InnReservations
                 int lastStayLength = rs.getInt("lastStayLength");
                 String checkout = rs.getString("CheckOut");
             
-                System.out.printf("%5s  %-25s %2d %-8s %d %-6.2f %-15s %-4s %10s %d %10s\n", roomCode, roomName, numBeds, 
+                
+                System.out.printf("%-8s %-25s %-4d %-8s %-6d %-9.2f %-15s %-10s %-15s %-16d %10s\n", roomCode, roomName, numBeds, 
                     bedType, maxOcc, basePrice, decor, pop, checkin, lastStayLength, checkout);
             }
         }
@@ -97,9 +102,9 @@ public class InnReservations
         String roomCode = scanner.nextLine();
         System.out.print("Enter desired bed type or \"Any\" for no preference: ");
         String bedType = scanner.nextLine();
-        System.out.print("Begin date of stay: ");
+        System.out.print("Begin date of stay (yyyy-mm-dd): ");
         String beginDate = scanner.nextLine();
-        System.out.print("End date of stay: ");
+        System.out.print("End date of stay (yyyy-mm-dd): ");
         String endDate = scanner.nextLine();
         System.out.print("Number of children: ");
         String children = scanner.nextLine();
@@ -705,6 +710,7 @@ public class InnReservations
     {
         try
         {
+            //Gets monthly totals across all rooms
             ResultSet rs = stmt.executeQuery(
                 "with recursive C(TheDate) as " +
                 "(" +
@@ -731,7 +737,6 @@ public class InnReservations
             while (rs.next())
             {
                 colTotals.add(rs.getInt("AllRoomsMonthSum"));
-                // System.out.printf("%9d ", rs.getInt("AllRoomsMonthSum"));
             }
 
             int numMonthsNoRev = 12 - colTotals.size();
@@ -828,8 +833,6 @@ public class InnReservations
         try
         {
             Class.forName("com.mysql.cj.jdbc.Driver");
-            System.out.println("MySQL JDBC Driver loaded");
-
 
         } catch (ClassNotFoundException ex)
         {
@@ -837,12 +840,14 @@ public class InnReservations
             System.exit(-1);
         }
 
+        String jdbcUrl = System.getenv("APP_JDBC_URL");
+        String dbUsername = System.getenv("APP_JDBC_USER");
+        String dbPassword = System.getenv("APP_JDBC_PW");
+
         try
         {
-            Connection conn = DriverManager.getConnection(
-                "jdbc:mysql://db.labthreesixfive.com/rjmiddle?autoReconnect=true&useSSL=false",
-                "ettucker",
-                "WinterTwenty20_365_014575934");
+            Connection conn = DriverManager.getConnection(jdbcUrl, dbUsername, dbPassword);
+                
             Scanner scanner = new Scanner(System.in);
             System.out.println("----------------------\nInn Reservation Options");
             System.out.println("1) Room popularity");
@@ -888,6 +893,6 @@ public class InnReservations
         catch (SQLException e)
         {
             e.printStackTrace();
-        }   
+        }
     }
 }
